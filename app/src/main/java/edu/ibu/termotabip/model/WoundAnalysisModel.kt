@@ -6,21 +6,17 @@ import android.graphics.Color
 import android.util.Log
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
-import org.tensorflow.lite.support.common.FileUtil
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
+import androidx.core.graphics.scale
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.get
+import androidx.core.graphics.set
 
 private const val TAG = "WoundAnalysisModel"
-
-data class WoundAnalysisResult(
-    val woundLevel: Int,
-    val confidence: Float,
-    val isSuccess: Boolean = true,
-    val errorMessage: String? = null
-)
 
 class WoundAnalysisModel(private val context: Context) {
     private var interpreter: Interpreter? = null
@@ -200,82 +196,9 @@ class WoundAnalysisModel(private val context: Context) {
         }
     }
     
-    private fun analyzeWoundAlternative(bitmap: Bitmap): WoundAnalysisResult {
-        try {
-            Log.d(TAG, "Alternatif analiz yöntemi deneniyor...")
-            
-            // Görüntüyü model boyutuna yeniden boyutlandır
-            val resizedBitmap = Bitmap.createScaledBitmap(bitmap, modelInputWidth, modelInputHeight, true)
-            
-            // Görüntüyü gri tonlamaya dönüştür
-            val grayBitmap = convertToGrayscale(resizedBitmap)
-            
-            // ByteBuffer oluştur (UINT8 için)
-            val inputSize = modelInputWidth * modelInputHeight * modelInputChannels
-            val inputBuffer = ByteBuffer.allocateDirect(inputSize)
-            inputBuffer.order(ByteOrder.nativeOrder())
-            
-            // Görüntüyü ByteBuffer'a dönüştür (UINT8 formatında)
-            val pixels = IntArray(modelInputWidth * modelInputHeight)
-            grayBitmap.getPixels(pixels, 0, modelInputWidth, 0, 0, modelInputWidth, modelInputHeight)
-            
-            inputBuffer.rewind()
-            for (pixel in pixels) {
-                // Gri değeri 0-255 aralığında al
-                val grayValue = (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel)) / 3
-                inputBuffer.put(grayValue.toByte())
-            }
-            
-            // Çıkış için buffer oluştur (UINT8 için)
-            val outputBuffer = ByteBuffer.allocateDirect(modelOutputClasses)
-            outputBuffer.order(ByteOrder.nativeOrder())
-            
-            // Modeli çalıştır
-            Log.d(TAG, "Alternatif yöntem: Model çalıştırılıyor... Buffer pozisyonu: ${inputBuffer.position()}, Kapasite: ${inputBuffer.capacity()}")
-            interpreter?.run(inputBuffer, outputBuffer)
-            
-            // Sonuçları işle
-            outputBuffer.rewind()
-            var maxIndex = 0
-            var maxValue = 0
-            
-            Log.d(TAG, "Model çıktıları (UINT8):")
-            for (i in 0 until modelOutputClasses) {
-                val value = outputBuffer.get().toInt() and 0xFF
-                val confidence = value / 255.0f
-                Log.d(TAG, "Sınıf $i: $value (${confidence * 100.0f}%)")
-                
-                if (value > maxValue) {
-                    maxValue = value
-                    maxIndex = i
-                }
-            }
-            
-            val maxConfidence = maxValue / 255.0f
-            Log.d(TAG, "Alternatif analiz sonucu: ${classNames.getOrNull(maxIndex) ?: "Bilinmeyen Risk"} (Seviye $maxIndex), Güven: $maxConfidence")
-            
-            return WoundAnalysisResult(
-                woundLevel = maxIndex,
-                confidence = maxConfidence,
-                isSuccess = true
-            )
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Alternatif analiz sırasında hata oluştu: ${e.message}")
-            e.printStackTrace()
-            
-            return WoundAnalysisResult(
-                woundLevel = -1,
-                confidence = 0f,
-                isSuccess = false,
-                errorMessage = "Analiz başarısız: ${e.message}"
-            )
-        }
-    }
-    
     private fun preprocessImage(bitmap: Bitmap): Bitmap {
         // Görüntüyü model boyutuna yeniden boyutlandır
-        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, modelInputWidth, modelInputHeight, true)
+        val resizedBitmap = bitmap.scale(modelInputWidth, modelInputHeight)
         
         // Görüntüyü gri tonlamaya dönüştür (eğer model gri tonlamalı ise)
         return if (modelInputChannels == 1) {
@@ -288,11 +211,11 @@ class WoundAnalysisModel(private val context: Context) {
     private fun convertToGrayscale(bitmap: Bitmap): Bitmap {
         val width = bitmap.width
         val height = bitmap.height
-        val grayBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val grayBitmap = createBitmap(width, height)
         
         for (x in 0 until width) {
             for (y in 0 until height) {
-                val pixel = bitmap.getPixel(x, y)
+                val pixel = bitmap[x, y]
                 
                 // Gri tonlama formülü: Y = 0.299R + 0.587G + 0.114B
                 val grayValue = (Color.red(pixel) * 0.299f + 
@@ -302,7 +225,7 @@ class WoundAnalysisModel(private val context: Context) {
                 // Alfa kanalını koru
                 val alpha = Color.alpha(pixel)
                 val grayPixel = Color.argb(alpha, grayValue, grayValue, grayValue)
-                grayBitmap.setPixel(x, y, grayPixel)
+                grayBitmap[x, y] = grayPixel
             }
         }
         
@@ -373,7 +296,7 @@ class WoundAnalysisModel(private val context: Context) {
             val exists = files?.contains(modelFile) == true
             Log.d(TAG, "Model dosyası kontrol ediliyor: $modelFile, Mevcut: $exists")
             if (exists) {
-                Log.d(TAG, "Assets içindeki dosyalar: ${files?.joinToString()}")
+                Log.d(TAG, "Assets içindeki dosyalar: ${files.joinToString()}")
             } else {
                 Log.e(TAG, "Model dosyası bulunamadı! Assets içindeki dosyalar: ${files?.joinToString()}")
             }
@@ -381,26 +304,6 @@ class WoundAnalysisModel(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Model dosyası kontrol edilirken hata: ${e.message}")
             false
-        }
-    }
-    
-    // Model hakkında bilgi veren yardımcı metod
-    fun getModelInfo(): String {
-        return try {
-            interpreter?.let { interp ->
-                val inputTensor = interp.getInputTensor(0)
-                val inputShape = inputTensor.shape()
-                val outputTensor = interp.getOutputTensor(0)
-                val outputShape = outputTensor.shape()
-                
-                "Giriş şekli: ${inputShape.contentToString()}\n" +
-                "Çıkış şekli: ${outputShape.contentToString()}\n" +
-                "Giriş veri tipi: ${inputTensor.dataType()}\n" +
-                "Çıkış veri tipi: ${outputTensor.dataType()}\n" +
-                "Giriş tensörü boyutu: ${inputTensor.numBytes()} byte"
-            } ?: "Interpreter henüz başlatılmadı"
-        } catch (e: Exception) {
-            "Model bilgisi alınamadı: ${e.message}"
         }
     }
 } 

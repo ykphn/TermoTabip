@@ -5,7 +5,7 @@ import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import edu.ibu.termotabip.model.WoundAnalysisModel
-import edu.ibu.termotabip.model.WoundAnalysisResult
+import edu.ibu.termotabip.model.WoundAnalysisUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,12 +16,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class WoundAnalysisUiState(
-    val isLoading: Boolean = false,
-    val capturedImageUri: String? = null,
-    val analysisResult: WoundAnalysisResult? = null,
-    val errorMessage: String? = null
-)
 
 class WoundAnalysisViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(WoundAnalysisUiState())
@@ -76,10 +70,6 @@ class WoundAnalysisViewModel : ViewModel() {
         return file
     }
     
-    fun resetState() {
-        _uiState.value = WoundAnalysisUiState()
-    }
-    
     override fun onCleared() {
         super.onCleared()
         woundAnalysisModel?.close()
@@ -89,6 +79,6 @@ class WoundAnalysisViewModel : ViewModel() {
         if (woundAnalysisModel == null) {
             woundAnalysisModel = WoundAnalysisModel(context)
         }
-        return woundAnalysisModel?.isModelAvailable(context) ?: false
+        return woundAnalysisModel?.isModelAvailable(context) == true
     }
 } 

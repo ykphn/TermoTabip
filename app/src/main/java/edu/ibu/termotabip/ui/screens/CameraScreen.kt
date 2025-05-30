@@ -1,5 +1,6 @@
 package edu.ibu.termotabip.ui.screens
 
+import android.Manifest
 import android.Manifest.permission.READ_EXTERNAL_STORAGE
 import android.Manifest.permission.READ_MEDIA_IMAGES
 import android.Manifest.permission.READ_MEDIA_VIDEO
@@ -117,7 +118,6 @@ val level3Recommendations = WoundRecommendation(
     )
 )
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun GalleryScreen(
     viewModel: WoundAnalysisViewModel = viewModel(),
@@ -217,21 +217,18 @@ fun GalleryScreen(
                     Button(onClick = {
 
                         when {
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> { // API 33 - Android 13
                                 multiplePermissionsLauncher.launch(
                                     arrayOf(
-                                        READ_MEDIA_IMAGES,
-                                        READ_MEDIA_VIDEO,
-                                        READ_MEDIA_VISUAL_USER_SELECTED
+                                        Manifest.permission.READ_MEDIA_IMAGES,
+                                        Manifest.permission.READ_MEDIA_VIDEO
                                     )
                                 )
                             }
-
-                            true -> {
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> { // API 23+ Android 6+
                                 multiplePermissionsLauncher.launch(
                                     arrayOf(
-                                        READ_MEDIA_IMAGES,
-                                        READ_MEDIA_VIDEO
+                                        Manifest.permission.READ_EXTERNAL_STORAGE
                                     )
                                 )
                             }
